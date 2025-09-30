@@ -1,0 +1,52 @@
+{
+  "name": "qms",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "npm run gen:wrangler:config && astro dev",
+    "build": "astro build",
+    "astro": "astro",
+    "login": "wrangler login",
+    "preview": "npm run gen:wrangler:config && astro build && wrangler dev",
+    "deploy": "npm run gen:wrangler:config && astro build && wrangler deploy",
+    "db:gen": "drizzle-kit generate",
+    "db:mig:local": "npx wrangler d1 execute qms --local --file=$(ls -1 migrations/*.sql | sort -r | head -n 1)",
+    "db:mig:remote": "npx wrangler d1 execute qms --remote --file=$(ls -1 migrations/*.sql | sort -r | head -n 1)",
+    "cf-typegen": "wrangler types",
+    "gen:wrangler:config": "NODE_ENV=production tsx scripts/gen-wrangler-config.ts"
+  },
+  "dependencies": {
+    "@astrojs/react": "^4.3.1",
+    "@aws-sdk/client-s3": "^3.842.0",
+    "@aws-sdk/s3-request-presigner": "^3.842.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.2.0",
+    "@mui/material": "^7.2.0",
+    "@nanostores/react": "^1.0.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "astro": "^5.13.9",
+    "drizzle-orm": "^0.44.5",
+    "jose": "^6.0.12",
+    "nanostores": "^1.0.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "swr": "^2.3.4",
+    "zod": "^3.25.75"
+  },
+  "devDependencies": {
+    "@astrojs/cloudflare": "^12.6.8",
+    "@ianvs/prettier-plugin-sort-imports": "^4.6.2",
+    "@tailwindcss/vite": "^4.1.11",
+    "@types/blueimp-md5": "^2.18.2",
+    "blueimp-md5": "^2.19.0",
+    "dotenv": "^17.2.1",
+    "drizzle-kit": "^0.31.5",
+    "prettier": "3.6.2",
+    "prettier-plugin-astro": "0.14.1",
+    "prettier-plugin-tailwindcss": "^0.6.13",
+    "tsx": "^4.20.4",
+    "wrangler": "^4.31.0"
+  }
+}

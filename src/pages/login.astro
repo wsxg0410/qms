@@ -1,0 +1,26 @@
+---
+import CssBaseline from '@mui/material/CssBaseline';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import LoginForm from '../components/react/LoginForm.tsx';
+import Layout from '../layouts/Layout.astro';
+
+// 从 URL 中提取 error 参数
+const error = Astro.url.searchParams.get('error');
+
+// 创建一个基础的 MUI 主题 (可选，但推荐)
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark', // 或者 'light'
+  },
+});
+---
+
+<Layout title="图片管理系统">
+  <ThemeProvider theme={darkTheme}>
+    <CssBaseline />
+
+    <main class="flex justify-center items-center h-screen">
+      <LoginForm client:load error={error!} />
+    </main>
+  </ThemeProvider>
+</Layout>
