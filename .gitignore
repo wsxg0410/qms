@@ -139,4 +139,6 @@ vite.config.ts.timestamp-*
 
 .wrangler/
 
+wrangler.jsonc
+
 
