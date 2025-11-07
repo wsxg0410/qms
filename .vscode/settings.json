@@ -6,7 +6,7 @@
       "BASE_URL": "http://localhost:4321"
     },
     "production": {
-      "BASE_URL": "https://qms.wsxg0410.workers.dev"
+      "BASE_URL": "https://qms.cgs-api.me"
     }
   },
 
