@@ -12,3 +12,7 @@ CREATE TABLE `queues` (
 	`createdAt` text NOT NULL,
 	`updatedAt` text NOT NULL
 );
+--> statement-breakpoint
+CREATE INDEX `idx_execAt` ON `queues` (`execAt`);--> statement-breakpoint
+CREATE INDEX `idx_createdAt` ON `queues` (`createdAt`);--> statement-breakpoint
+CREATE INDEX `idx_env_type` ON `queues` (`env`,`type`);

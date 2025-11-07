@@ -39,6 +39,7 @@ export const QueueModal = sqliteTable(
   (table) => ({
     idxQueuesExecAt: index('idx_execAt').on(table.execAt),
     idxQueuesCreatedAt: index('idx_createdAt').on(table.createdAt),
+    idxQueuesEnvType: index('idx_env_type').on(table.env, table.type),
   }),
 );
 

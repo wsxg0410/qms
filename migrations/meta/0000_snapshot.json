@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a044ad79-b6ea-450a-9cf9-f7712ec07efb",
+  "id": "39bf6f25-6e7b-47e8-b7b0-a23d3d4f652e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "queues": {
@@ -97,7 +97,30 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_execAt": {
+          "name": "idx_execAt",
+          "columns": [
+            "execAt"
+          ],
+          "isUnique": false
+        },
+        "idx_createdAt": {
+          "name": "idx_createdAt",
+          "columns": [
+            "createdAt"
+          ],
+          "isUnique": false
+        },
+        "idx_env_type": {
+          "name": "idx_env_type",
+          "columns": [
+            "env",
+            "type"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
