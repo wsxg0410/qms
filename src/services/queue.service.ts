@@ -14,7 +14,7 @@ import { nanoid } from 'nanoid'; // 用于为非唯一任务生成ID
 
 import { QueueModal, type Queue, type QueueStatusType } from '@/db/schema';
 import type { GetQueueInput } from '@/dto/queue.dto';
-import { md5 } from '@/lib/helper';
+import { chunk, md5 } from '@/lib/helper';
 import type { QueueOption } from '@/types/queue.type';
 import { BaseService } from './base.service';
 
@@ -101,21 +101,26 @@ export class QueueService extends BaseService {
   }
 
   /**
-   * 批量向队列中添加任务
+   * 批量向队列中添加任务（已针对D1的变量限制进行优化）
    * @param type 任务类型
    * @param datas 任务数据数组
    * @param options 任务选项
    */
-  async bulkAdd<T = any>(type: string, datas: T[], options: QueueOption<T>) {
+  async bulkAdd<T = any>(
+    type: string,
+    datas: T[],
+    options: QueueOption<T>,
+  ): Promise<Queue[]> {
     // 如果没有数据，直接返回
     if (!datas || datas.length === 0) {
-      return true;
+      return [];
     }
 
     const { unique = true, priority = 0, genKeyData, env } = options;
     const now = new Date().toISOString();
 
-    // 1. 使用 .map() 准备所有要插入的数据
+    // 1. 准备所有要插入的数据
+    // (已修复：确保 payloads 包含所有 NOT NULL 的字段)
     let queuePayloads = await Promise.all(
       datas.map(async (item: T) => {
         // 根据 unique 选项决定如何生成 id
@@ -130,6 +135,7 @@ export class QueueService extends BaseService {
             )
           : nanoid(); // 非唯一任务：为每个任务生成一个全新的随机ID
 
+        // 必须返回一个完整的 Insert Model
         return {
           id,
           env,
@@ -140,30 +146,39 @@ export class QueueService extends BaseService {
       }),
     );
 
-    // 2. 根据 unique 选项执行不同的数据库操作
-    if (unique) {
-      // 对于唯一任务，执行批量“插入或更新”（UPSERT）
-      await this.db
-        .insert(QueueModal)
-        .values([...(queuePayloads as Queue[])])
-        .onConflictDoUpdate({
-          target: QueueModal.id,
-          set: {
-            status: 'active',
-            errorTimes: 0,
-            config: options,
-            execAt: now,
-            priority,
-            updatedAt: now,
-          },
-        });
-    } else {
-      await this.db.insert(QueueModal).values(queuePayloads as Queue[]);
+    const ids = queuePayloads.map((item) => item.id);
+
+    const chunks = chunk(queuePayloads, 50);
+
+    for (const chunk of chunks) {
+      if (unique) {
+        await this.db
+          .insert(QueueModal)
+          .values(chunk) // 仅插入当前块
+          .onConflictDoUpdate({
+            target: QueueModal.id,
+            set: {
+              status: 'active',
+              errorTimes: 0,
+              config: options,
+              execAt: now,
+              priority,
+              updatedAt: now,
+              // 注意：这里没有更新 data 字段，这似乎是故意的
+            },
+          });
+      } else {
+        await this.db.insert(QueueModal).values(chunk); // 仅插入当前块
+      }
     }
 
-    return true;
-  }
+    const qes = await this.db
+      .select()
+      .from(QueueModal)
+      .where(inArray(QueueModal.id, ids));
 
+    return qes;
+  }
   /**
    * 根据 GetQueueInput 生成 where 条件
    */
@@ -312,6 +327,7 @@ export class QueueService extends BaseService {
   }
 
   async updateQueue(
+    env: string,
     id: string,
     {
       result,
@@ -322,11 +338,22 @@ export class QueueService extends BaseService {
     await this.db
       .update(QueueModal)
       .set({ result, status, errorTimes })
-      .where(eq(QueueModal.id, id));
+      .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)));
+
+    const queue = await this.getById(id);
+
+    if (queue?.env !== env) throw new Error('Invalid env');
+
+    return queue;
   }
 
   async getById(id: string) {
-    return await this.db.select().from(QueueModal).where(eq(QueueModal.id, id));
+    return await this.db
+      .select()
+      .from(QueueModal)
+      .where(eq(QueueModal.id, id))
+      .limit(1)
+      .get();
   }
 
   async removeAll(env: string, input: GetQueueInput = {}) {

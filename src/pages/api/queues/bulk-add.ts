@@ -12,15 +12,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const payload = bulkAddQueueInputSchema.parse(body);
 
-  if (!payload?.data?.length) return createApiResponse(0);
+  if (!payload?.data?.length) return createApiResponse([]);
 
   const queueService = new QueueService(db);
 
-  await queueService.bulkAdd(payload.type, payload.data, {
+  const queues = await queueService.bulkAdd(payload.type, payload.data, {
     env,
     unique: payload.unique,
     priority: payload.priority,
   });
 
-  return createApiResponse(payload.data.length);
+  return createApiResponse(queues);
 };

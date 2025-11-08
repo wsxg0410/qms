@@ -1,13 +1,14 @@
 import type { APIRoute } from 'astro';
 
+import { QueueStatus, type QueueStatusType } from '@/db/schema';
 import { createApiResponse } from '@/lib/app';
+import { ValidationError } from '@/lib/error';
 import { QueueService } from '@/services/queue.service';
 
-export const DELETE: APIRoute = async ({ request, locals }) => {
+export const DELETE: APIRoute = async ({ request, locals, params }) => {
   const db = locals.db;
 
-  const url = new URL(request.url);
-  const id = url.searchParams.get('id') || ``;
+  const id = params.id;
 
   if (!id) {
     return createApiResponse(
@@ -24,4 +25,34 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
   await queueService.remove(locals.env, id);
 
   return createApiResponse();
+};
+
+export const PUT: APIRoute = async ({ request, locals, params }) => {
+  const db = locals.db;
+  const env = locals.env;
+
+  const id = params.id;
+
+  if (!id) throw new ValidationError('Missing id');
+
+  const body = await request.json<{
+    status: QueueStatusType;
+    errorTimes: number;
+    result: string;
+  }>();
+
+  const status = body.status;
+
+  if (!QueueStatus.includes(status))
+    throw new ValidationError('Invalid status');
+
+  const queueService = new QueueService(db);
+
+  const bd = await queueService.updateQueue(env, id, {
+    status,
+    errorTimes: body.errorTimes,
+    result: body.result,
+  });
+
+  return createApiResponse(bd);
 };

@@ -32,13 +32,39 @@ x-env: dev
     "type": "download",
     "data": [
         {
-            "coupon": "12311x1",
+            "coupon": "12311x1xxx",
             "follow": "123"
         },
         {
             "coupon": "12333233",
-            "follow": "123"
+            "follow": "1234"
         }
     ]
 }
 
+### delete
+DELETE {{BASE_URL}}/api/queues/0352cd10b8f21c99c497f1a3ef1e6250 HTTP/1.1
+Content-Type: application/json
+x-env: dev
+
+
+### update status
+PUT {{BASE_URL}}/api/queues/a2c2d558269f48b18e1c36dbc38c8eb3/status HTTP/1.1
+Content-Type: application/json
+x-env: dev
+
+{
+    "status": "fail"
+}
+
+
+### update data
+PUT {{BASE_URL}}/api/queues/a2c2d558269f48b18e1c36dbc38c8eb3 HTTP/1.1
+Content-Type: application/json
+x-env: dev
+
+{
+    "status": "fail",
+    "errorTimes": 1,
+    "result": "error"
+}
