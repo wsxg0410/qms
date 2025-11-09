@@ -14,7 +14,7 @@ import { nanoid } from 'nanoid'; // 用于为非唯一任务生成ID
 
 import { QueueModal, type Queue, type QueueStatusType } from '@/db/schema';
 import type { GetQueueInput } from '@/dto/queue.dto';
-import { chunk, md5 } from '@/lib/helper';
+import { md5 } from '@/lib/helper';
 import type { QueueOption } from '@/types/queue.type';
 import { BaseService } from './base.service';
 
