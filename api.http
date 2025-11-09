@@ -13,13 +13,13 @@ x-env: dev
 ### parse couponfollow
 POST {{BASE_URL}}/api/queues/add HTTP/1.1
 Content-Type: application/json
-x-env: dev
+x-env: download-prod
 
 {
     "type": "download",
     "data": {
-        "coupon": "123",
-        "follow": "123"
+        "coupon": "1222223",
+        "follow": "133323"
     }
 }
 

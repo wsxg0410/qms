@@ -146,15 +146,11 @@ export class QueueService extends BaseService {
       }),
     );
 
-    const ids = queuePayloads.map((item) => item.id);
-
-    const chunks = chunk(queuePayloads, 50);
-
-    for (const chunk of chunks) {
+    const statements = queuePayloads.map((row) => {
       if (unique) {
-        await this.db
+        return this.db
           .insert(QueueModal)
-          .values(chunk) // 仅插入当前块
+          .values(row)
           .onConflictDoUpdate({
             target: QueueModal.id,
             set: {
@@ -167,18 +163,45 @@ export class QueueService extends BaseService {
               // 注意：这里没有更新 data 字段，这似乎是故意的
             },
           });
-      } else {
-        await this.db.insert(QueueModal).values(chunk); // 仅插入当前块
       }
-    }
 
-    const qes = await this.db
-      .select()
-      .from(QueueModal)
-      .where(inArray(QueueModal.id, ids));
+      return this.db.insert(QueueModal).values(row).onConflictDoNothing();
+    });
+
+    const ids = queuePayloads.map((item) => item.id);
+
+    await this.db.batch(statements as any);
+
+    const qes = await this.getByIds(ids);
 
     return qes;
   }
+
+  async getByIds(ids: string[]) {
+    const CHUNK_SIZE = 80;
+
+    const promises = [];
+
+    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+      const chunk = ids.slice(i, i + CHUNK_SIZE);
+
+      if (chunk.length > 0) {
+        const queryPromise = this.db
+          .select()
+          .from(QueueModal)
+          .where(inArray(QueueModal.id, chunk)); // 只查询这个小 chunk
+
+        promises.push(queryPromise);
+      }
+    }
+
+    const resultsArray = await Promise.all(promises);
+
+    const allQueues = resultsArray.flat();
+
+    return allQueues;
+  }
+
   /**
    * 根据 GetQueueInput 生成 where 条件
    */
@@ -317,13 +340,24 @@ export class QueueService extends BaseService {
       .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)));
   }
 
-  async updateStatus(env: string, id: string, status: QueueStatusType) {
+  async updateStatus(
+    env: string,
+    id: string,
+    status: QueueStatusType,
+  ): Promise<Queue> {
     await this.db
       .update(QueueModal)
       .set({
         status,
       })
       .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)));
+
+    const queue = await this.getById(id);
+    if (!queue) throw new Error('Queue not found');
+
+    if (queue?.env !== env) throw new Error('Invalid env');
+
+    return queue;
   }
 
   async updateQueue(
