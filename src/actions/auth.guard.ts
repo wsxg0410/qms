@@ -1,14 +1,13 @@
 import { ActionError } from 'astro:actions';
-import { env } from 'cloudflare:workers';
 
 /**
  * 校验 admin 请求的 auth key
- * 从请求 header 中读取 x-auth-key 并与 Cloudflare secrets 比对
- * dev 模式下从 .dev.vars 读取，production 从 Cloudflare Secrets 读取
+ * 从请求 header 中读取 x-auth-key 并与环境变量比对
+ * 构建时从 .env / .env.production 读取并内联到 server bundle
  */
 export function verifyAuthKey(request: Request): void {
   const authKey = request.headers.get('x-auth-key');
-  const validKey = (env as any).ADMIN_AUTH_KEY;
+  const validKey = import.meta.env.ADMIN_AUTH_KEY;
 
   if (!validKey) {
     throw new ActionError({

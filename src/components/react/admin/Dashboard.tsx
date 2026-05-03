@@ -4,14 +4,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import TextField from '@mui/material/TextField';
-import { useGetList } from 'react-admin';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
@@ -19,7 +12,6 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import ReplayIcon from '@mui/icons-material/Replay';
 
-import { getAdminEnv, setAdminEnv } from './providers/dataProvider';
 import { getAuthKey } from './providers/authProvider';
 
 /** 状态配色映射 */
@@ -65,11 +57,10 @@ interface StatsItem {
 }
 
 export function Dashboard() {
-  const [env, setEnv] = useState(getAdminEnv());
   const [stats, setStats] = useState<StatsItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchStats = async (targetEnv: string) => {
+  const fetchStats = async () => {
     setLoading(true);
     try {
       const authKey = getAuthKey();
@@ -79,7 +70,7 @@ export function Dashboard() {
           'Content-Type': 'application/json',
           ...(authKey ? { 'x-auth-key': authKey } : {}),
         },
-        body: JSON.stringify({ env: targetEnv }),
+        body: JSON.stringify({}),
       });
       const text = await res.text();
       const contentType = res.headers.get('content-type') || '';
@@ -99,51 +90,30 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    fetchStats(env);
-  }, [env]);
-
-  const handleEnvChange = (newEnv: string) => {
-    setEnv(newEnv);
-    setAdminEnv(newEnv);
-  };
+    fetchStats();
+  }, []);
 
   const totalCount = stats.reduce((sum, s) => sum + s.count, 0);
 
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 4,
-        }}
-      >
-        <Box>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 800,
-              background: 'linear-gradient(135deg, #5c6bc0, #26a69a)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            Dashboard
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            队列管理系统总览
-          </Typography>
-        </Box>
-        <TextField
-          label="Namespace (env)"
-          value={env}
-          onChange={(e) => handleEnvChange(e.target.value)}
-          size="small"
-          sx={{ minWidth: 180 }}
-        />
+      <Box sx={{ mb: 4 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #5c6bc0, #26a69a)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          Dashboard
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          队列管理系统总览
+        </Typography>
       </Box>
 
       {/* Stats Cards */}
@@ -168,11 +138,6 @@ export function Dashboard() {
               <Typography variant="body1" color="text.secondary">
                 总任务数
               </Typography>
-              <Chip
-                label={`env: ${env}`}
-                size="small"
-                sx={{ mt: 1, bgcolor: 'rgba(92, 107, 192, 0.1)', color: '#5c6bc0' }}
-              />
             </CardContent>
           </Card>
 

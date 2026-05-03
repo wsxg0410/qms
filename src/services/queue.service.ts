@@ -181,13 +181,16 @@ export class QueueService extends BaseService {
 
   /**
    * 根据 GetQueueInput 生成 where 条件
+   * env 作为可选筛选条件
    */
   private async getCond(
-    env: string,
-    search: GetQueueInput,
+    search: GetQueueInput & { env?: string },
   ): Promise<SQL | undefined> {
     const conds: SQL[] = [];
-    conds.push(eq(QueueModal.env, env));
+
+    if (search.env) {
+      conds.push(eq(QueueModal.env, search.env));
+    }
 
     if (search.id) {
       conds.push(eq(QueueModal.id, search.id));
@@ -221,7 +224,7 @@ export class QueueService extends BaseService {
     }
     // 否则，根据 search 对象构建查询条件
     else if (input) {
-      whereCondition = await this.getCond(env, input);
+      whereCondition = await this.getCond({ ...input, env });
     }
 
     // 如果没有任何查询条件，则直接返回，避免更新整个表
@@ -314,6 +317,28 @@ export class QueueService extends BaseService {
     return queues;
   }
 
+  /**
+   * 按 id 删除单条记录
+   */
+  async removeById(id: string) {
+    await this.db
+      .delete(QueueModal)
+      .where(eq(QueueModal.id, id));
+  }
+
+  /**
+   * 按 id 数组批量删除
+   */
+  async removeByIds(ids: string[]) {
+    if (!ids || ids.length === 0) return;
+    await this.db
+      .delete(QueueModal)
+      .where(inArray(QueueModal.id, ids));
+  }
+
+  /**
+   * 按 env + id 删除（内部调用者使用）
+   */
   async remove(env: string, id: string) {
     await this.db
       .delete(QueueModal)
@@ -321,7 +346,6 @@ export class QueueService extends BaseService {
   }
 
   async updateStatus(
-    env: string,
     id: string,
     status: QueueStatusType,
   ): Promise<Queue> {
@@ -331,7 +355,7 @@ export class QueueService extends BaseService {
         status,
         updatedAt: new Date().toISOString(),
       })
-      .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)))
+      .where(eq(QueueModal.id, id))
       .returning();
 
     if (!queue) throw new Error('Queue not found');
@@ -340,7 +364,6 @@ export class QueueService extends BaseService {
   }
 
   async updateQueue(
-    env: string,
     id: string,
     {
       result,
@@ -356,7 +379,7 @@ export class QueueService extends BaseService {
         errorTimes,
         updatedAt: new Date().toISOString(),
       })
-      .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)))
+      .where(eq(QueueModal.id, id))
       .returning();
 
     if (!queue) throw new Error('Queue not found');
@@ -374,7 +397,7 @@ export class QueueService extends BaseService {
   }
 
   async removeAll(env: string, input: GetQueueInput = {}) {
-    let where = await this.getCond(env, input);
+    let where = await this.getCond({ ...input, env });
 
     await this.db.delete(QueueModal).where(where);
 
@@ -383,15 +406,19 @@ export class QueueService extends BaseService {
 
   /**
    * 分页查询任务列表
+   * env 是可选筛选条件，与 type、status 同级
    */
   async list(
-    env: string,
-    input: ListQueueInput,
+    input: ListQueueInput & { env?: string },
   ): Promise<{ data: Queue[]; total: number; page: number; pageSize: number }> {
-    const { type, status, page = 1, pageSize = 20 } = input;
+    const { env, type, status, page = 1, pageSize = 20 } = input;
     const offset = (page - 1) * pageSize;
 
-    const conds: SQL[] = [eq(QueueModal.env, env)];
+    const conds: SQL[] = [];
+
+    if (env) {
+      conds.push(eq(QueueModal.env, env));
+    }
 
     if (type) {
       conds.push(eq(QueueModal.type, type));
@@ -401,7 +428,11 @@ export class QueueService extends BaseService {
       conds.push(eq(QueueModal.status, status));
     }
 
-    const whereClause = conds.length === 1 ? conds[0] : and(...(conds as any));
+    const whereClause = conds.length === 0
+      ? undefined
+      : conds.length === 1
+        ? conds[0]
+        : and(...(conds as any));
 
     // 并行获取数据和总数
     const [data, totalResult] = await Promise.all([
@@ -427,10 +458,9 @@ export class QueueService extends BaseService {
   }
 
   /**
-   * 批量更新任务状态
+   * 批量更新任务状态（按 id 数组）
    */
   async batchUpdateStatus(
-    env: string,
     ids: string[],
     status: QueueStatusType,
   ): Promise<number> {
@@ -442,9 +472,7 @@ export class QueueService extends BaseService {
         status,
         updatedAt: new Date().toISOString(),
       })
-      .where(
-        and(eq(QueueModal.env, env), inArray(QueueModal.id, ids)),
-      )
+      .where(inArray(QueueModal.id, ids))
       .returning();
 
     return result.length;
@@ -452,18 +480,27 @@ export class QueueService extends BaseService {
 
   /**
    * 获取各状态的任务统计概览
+   * env 是可选筛选条件
    */
   async getStats(
-    env: string,
+    env?: string,
     type?: string,
   ): Promise<{ status: string; count: number }[]> {
-    const conds: SQL[] = [eq(QueueModal.env, env)];
+    const conds: SQL[] = [];
+
+    if (env) {
+      conds.push(eq(QueueModal.env, env));
+    }
 
     if (type) {
       conds.push(eq(QueueModal.type, type));
     }
 
-    const whereClause = conds.length === 1 ? conds[0] : and(...(conds as any));
+    const whereClause = conds.length === 0
+      ? undefined
+      : conds.length === 1
+        ? conds[0]
+        : and(...(conds as any));
 
     const result = await this.db
       .select({
@@ -478,5 +515,33 @@ export class QueueService extends BaseService {
       status: r.status,
       count: r.count,
     }));
+  }
+
+  /**
+   * 获取所有不同的 env 值（用于筛选下拉）
+   */
+  async getDistinctEnvs(): Promise<string[]> {
+    const result = await this.db
+      .selectDistinct({ env: QueueModal.env })
+      .from(QueueModal)
+      .orderBy(asc(QueueModal.env));
+
+    return result.map((r) => r.env);
+  }
+
+  /**
+   * 获取不同的 type 值（用于筛选下拉），可按 env 过滤
+   * 走 idx_env_type 复合索引，查询成本极低
+   */
+  async getDistinctTypes(env?: string): Promise<string[]> {
+    const query = this.db
+      .selectDistinct({ type: QueueModal.type })
+      .from(QueueModal);
+
+    const result = env
+      ? await query.where(eq(QueueModal.env, env)).orderBy(asc(QueueModal.type))
+      : await query.orderBy(asc(QueueModal.type));
+
+    return result.map((r) => r.type);
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   List,
   Datagrid,
@@ -20,6 +20,7 @@ import {
   useUpdate,
   useNotify,
   useRefresh,
+  useListFilterContext,
 } from 'react-admin';
 import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
@@ -28,6 +29,8 @@ import MenuItem from '@mui/material/MenuItem';
 import MuiSelect from '@mui/material/Select';
 import MuiTextField from '@mui/material/TextField';
 import ClickAwayListener from '@mui/material/ClickAwayListener';
+
+import { getAuthKey } from '../providers/authProvider';
 
 /** 状态颜色映射 */
 const STATUS_COLORS: Record<string, 'success' | 'info' | 'warning' | 'error' | 'default' | 'primary' | 'secondary'> = {
@@ -237,10 +240,61 @@ const QueueExpandPanel = () => {
   );
 };
 
+/** 调用 Astro Action 的通用工具（筛选组件用） */
+async function fetchAction<T = any>(actionName: string, input: Record<string, any> = {}): Promise<T> {
+  const authKey = getAuthKey();
+  const res = await fetch(`/_actions/${actionName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authKey ? { 'x-auth-key': authKey } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  const text = await res.text();
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('json+devalue')) {
+    const { unflatten } = await import('devalue');
+    return unflatten(JSON.parse(text)) as T;
+  }
+  return JSON.parse(text) as T;
+}
+
+/** 动态 Env 下拉筛选 —— 从数据库聚合获取选项 */
+const EnvSelectFilter = (props: any) => {
+  const [choices, setChoices] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetchAction<string[]>('queue.getEnvOptions')
+      .then((list) => setChoices(list.map((e) => ({ id: e, name: e }))))
+      .catch((err) => console.error('Failed to load env options', err));
+  }, []);
+
+  return <SelectInput {...props} choices={choices} />;
+};
+
+/** 动态 Type 下拉筛选 —— 受 env 联动，env 变化时自动刷新选项 */
+const TypeSelectFilter = (props: any) => {
+  const [choices, setChoices] = useState<{ id: string; name: string }[]>([]);
+  const { filterValues } = useListFilterContext();
+  const currentEnv = filterValues?.env || '';
+
+  useEffect(() => {
+    const input: Record<string, any> = {};
+    if (currentEnv) input.env = currentEnv;
+
+    fetchAction<string[]>('queue.getTypeOptions', input)
+      .then((list) => setChoices(list.map((t) => ({ id: t, name: t }))))
+      .catch((err) => console.error('Failed to load type options', err));
+  }, [currentEnv]);
+
+  return <SelectInput {...props} choices={choices} />;
+};
+
 /** 筛选器 */
 const QueueFilters = [
-  <TextInput source="env" label="Env (App)" alwaysOn key="env" size="small" margin="none" />,
-  <TextInput source="type" label="Type" alwaysOn key="type" size="small" margin="none" />,
+  <EnvSelectFilter source="env" label="Env" alwaysOn key="env" size="small" margin="none" />,
+  <TypeSelectFilter source="type" label="Type" alwaysOn key="type" size="small" margin="none" />,
   <SelectInput
     source="status"
     label="Status"

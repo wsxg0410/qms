@@ -19,7 +19,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
   const queueService = new QueueService(db);
 
-  const result = await queueService.list(env, input);
+  const result = await queueService.list({ ...input, env });
 
   return createApiResponse(result);
 };

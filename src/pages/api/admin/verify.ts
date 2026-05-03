@@ -1,5 +1,4 @@
 import type { APIRoute } from 'astro';
-import { env } from 'cloudflare:workers';
 
 /**
  * 验证 admin auth key 是否有效
@@ -9,7 +8,7 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const authKey = body?.authKey;
-    const validKey = (env as any).ADMIN_AUTH_KEY;
+    const validKey = import.meta.env.ADMIN_AUTH_KEY;
 
     if (!validKey) {
       return new Response(
