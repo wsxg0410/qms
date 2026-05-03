@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 
 import type { QueueStatusType } from '@/db/schema';
+import { getQueueInputSchema } from '@/dto/queue.dto';
 import { createApiResponse } from '@/lib/app';
 import { QueueService } from '@/services/queue.service';
 
@@ -19,4 +20,18 @@ export const GET: APIRoute = async ({ request, locals }) => {
   });
 
   return createApiResponse();
+};
+
+export const POST: APIRoute = async ({ request, locals }) => {
+  const db = locals.db;
+  const env = locals.env;
+
+  const body = await request.json();
+  const payload = getQueueInputSchema.parse(body);
+
+  const queueService = new QueueService(db);
+
+  const result = await queueService.reactive(env, payload);
+
+  return createApiResponse(result);
 };

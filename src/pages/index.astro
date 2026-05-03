@@ -1,34 +1,25 @@
 ---
-import { PicList } from '@/components/react/PicList';
-import { PicUploader } from '@/components/react/PicUploader';
-import { ProjectManager } from '@/components/react/ProjectManager';
-import { CF, IMG_URL } from '@/config/app.config';
-import Layout from '../layouts/Layout.astro';
-
-const user = Astro.locals.user;
-
-if (!user) {
-  return Astro.redirect('/login');
-}
+import AdminApp from '../components/react/admin/AdminApp';
 ---
 
-<Layout title="图片管理系统">
-  <header
-    class="flex justify-between items-center p-3 border-b border-gray-200 gap-5"
-    data-ttt={JSON.stringify(CF)}
-  >
-    <div class="font-bold text-2xl flex-auto">IMS</div>
-    <div>
-      <ProjectManager client:idle />
-    </div>
-    <div>
-      <a href="/api/auth/logout" class="text-red-500">Logout</a>
-    </div>
-  </header>
-  <div class="bg-gray-100">
-    <PicUploader client:idle />
-  </div>
-  <main class="p-3">
-    <PicList client:idle />
-  </main>
-</Layout>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>QMS Admin</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #f5f5f5;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <AdminApp client:only="react" />
+  </body>
+</html>

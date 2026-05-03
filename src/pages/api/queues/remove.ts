@@ -1,38 +1,27 @@
 import type { APIRoute } from 'astro';
 
+import { removeQueueInputSchema } from '@/dto/queue.dto';
 import { createApiResponse } from '@/lib/app';
 import { QueueService } from '@/services/queue.service';
 
-export const GET: APIRoute = async ({ request, locals, params }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   const db = locals.db;
+  const env = locals.env;
 
-  try {
-    const url = new URL(request.url);
-    const type = url.searchParams.get('type') || ``;
-    const batchSize = url.searchParams.get('batchSize') || `10`;
+  const body = await request.json();
+  const payload = removeQueueInputSchema.parse(body);
 
-    const queueService = new QueueService(db);
-
-    const queues = await queueService.getByBatchSize({
-      env: locals.env,
-      type,
-      batchSize: Number(batchSize),
-    });
-
+  // 至少需要一个过滤条件，防止误删全部
+  if (!payload.type && !payload.status) {
     return createApiResponse(
-      {
-        success: true,
-        data: queues,
-      },
-      200,
-    );
-  } catch (error) {
-    return createApiResponse(
-      {
-        success: false,
-        error: 'Failed to get images',
-      },
-      500,
+      { message: 'At least one filter (type or status) is required' },
+      400,
     );
   }
+
+  const queueService = new QueueService(db);
+
+  await queueService.removeAll(env, payload);
+
+  return createApiResponse(true);
 };

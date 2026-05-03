@@ -2,8 +2,24 @@ import type { APIRoute } from 'astro';
 
 import { QueueStatus, type QueueStatusType } from '@/db/schema';
 import { createApiResponse } from '@/lib/app';
-import { ValidationError } from '@/lib/error';
+import { NotFoundError, ValidationError } from '@/lib/error';
 import { QueueService } from '@/services/queue.service';
+
+export const GET: APIRoute = async ({ locals, params }) => {
+  const db = locals.db;
+  const id = params.id;
+
+  if (!id) return createApiResponse({ message: 'Missing id' }, 400);
+
+  const queueService = new QueueService(db);
+  const queue = await queueService.getById(id);
+
+  if (!queue || queue.env !== locals.env) {
+    throw new NotFoundError('Queue not found');
+  }
+
+  return createApiResponse(queue);
+};
 
 export const DELETE: APIRoute = async ({ request, locals, params }) => {
   const db = locals.db;

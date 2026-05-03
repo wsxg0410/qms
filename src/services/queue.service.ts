@@ -5,15 +5,15 @@ import {
   desc,
   eq,
   inArray,
+  like,
   lt,
-  sql,
   type SQL,
 } from 'drizzle-orm';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 import { nanoid } from 'nanoid'; // 用于为非唯一任务生成ID
 
 import { QueueModal, type Queue, type QueueStatusType } from '@/db/schema';
-import type { GetQueueInput } from '@/dto/queue.dto';
+import type { GetQueueInput, ListQueueInput } from '@/dto/queue.dto';
 import { md5 } from '@/lib/helper';
 import type { QueueOption } from '@/types/queue.type';
 import { BaseService } from './base.service';
@@ -47,7 +47,7 @@ export class QueueService extends BaseService {
 
       // 使用 Drizzle 的 "UPSERT" 功能:
       // 如果ID不存在，则插入新纪录；如果ID已存在，则更新指定字段。
-      // 这是一个原子操作，比“先查询再更新”更高效、更安全。
+      // 这是一个原子操作，比"先查询再更新"更高效、更安全。
       const result = await this.db
         .insert(QueueModal)
         .values({
@@ -162,44 +162,21 @@ export class QueueService extends BaseService {
               updatedAt: now,
               // 注意：这里没有更新 data 字段，这似乎是故意的
             },
-          });
+          })
+          .returning();
       }
 
-      return this.db.insert(QueueModal).values(row).onConflictDoNothing();
+      return this.db
+        .insert(QueueModal)
+        .values(row)
+        .onConflictDoNothing()
+        .returning();
     });
 
-    const ids = queuePayloads.map((item) => item.id);
+    const batchResults = await this.db.batch(statements as any);
 
-    await this.db.batch(statements as any);
-
-    const qes = await this.getByIds(ids);
-
-    return qes;
-  }
-
-  async getByIds(ids: string[]) {
-    const CHUNK_SIZE = 80;
-
-    const promises = [];
-
-    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-      const chunk = ids.slice(i, i + CHUNK_SIZE);
-
-      if (chunk.length > 0) {
-        const queryPromise = this.db
-          .select()
-          .from(QueueModal)
-          .where(inArray(QueueModal.id, chunk)); // 只查询这个小 chunk
-
-        promises.push(queryPromise);
-      }
-    }
-
-    const resultsArray = await Promise.all(promises);
-
-    const allQueues = resultsArray.flat();
-
-    return allQueues;
+    // 直接使用 batch 返回值，避免冗余的 getByIds 回查
+    return (batchResults as any[]).flat().filter(Boolean) as Queue[];
   }
 
   /**
@@ -237,7 +214,10 @@ export class QueueService extends BaseService {
 
     // 优先根据 ids 数组构建查询条件
     if (ids && ids.length > 0) {
-      whereCondition = inArray(QueueModal.id, ids);
+      whereCondition = and(
+        eq(QueueModal.env, env),
+        inArray(QueueModal.id, ids),
+      );
     }
     // 否则，根据 search 对象构建查询条件
     else if (input) {
@@ -256,9 +236,9 @@ export class QueueService extends BaseService {
     await this.db
       .update(QueueModal)
       .set({
-        env,
         status: `active`,
         errorTimes: 0,
+        updatedAt: new Date().toISOString(),
       })
       .where(whereCondition);
 
@@ -268,7 +248,7 @@ export class QueueService extends BaseService {
   /**
    * Gets the count of queues matching specific criteria.
    * @param params - The query parameters.
-   * @param params.type - The queue type, supports regex.
+   * @param params.type - The queue type, supports LIKE prefix match.
    * @param params.env - The environment to filter by.
    * @returns The number of matching queues.
    */
@@ -285,8 +265,8 @@ export class QueueService extends BaseService {
           // Condition 1: Match the environment
           eq(QueueModal.env, env),
 
-          // Condition 2: Match the type using REGEXP
-          sql`${QueueModal.type} regexp ${type}`,
+          // Condition 2: Match the type using LIKE prefix match (可利用索引)
+          like(QueueModal.type, `${type}%`),
 
           // Condition 3: Status must be in the specified list
           inArray(QueueModal.status, [`active`, `fail`]),
@@ -345,17 +325,16 @@ export class QueueService extends BaseService {
     id: string,
     status: QueueStatusType,
   ): Promise<Queue> {
-    await this.db
+    const [queue] = await this.db
       .update(QueueModal)
       .set({
         status,
+        updatedAt: new Date().toISOString(),
       })
-      .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)));
+      .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)))
+      .returning();
 
-    const queue = await this.getById(id);
     if (!queue) throw new Error('Queue not found');
-
-    if (queue?.env !== env) throw new Error('Invalid env');
 
     return queue;
   }
@@ -369,14 +348,18 @@ export class QueueService extends BaseService {
       errorTimes,
     }: { result: string; status: QueueStatusType; errorTimes: number },
   ) {
-    await this.db
+    const [queue] = await this.db
       .update(QueueModal)
-      .set({ result, status, errorTimes })
-      .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)));
+      .set({
+        result,
+        status,
+        errorTimes,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(and(eq(QueueModal.id, id), eq(QueueModal.env, env)))
+      .returning();
 
-    const queue = await this.getById(id);
-
-    if (queue?.env !== env) throw new Error('Invalid env');
+    if (!queue) throw new Error('Queue not found');
 
     return queue;
   }
@@ -396,5 +379,104 @@ export class QueueService extends BaseService {
     await this.db.delete(QueueModal).where(where);
 
     return true;
+  }
+
+  /**
+   * 分页查询任务列表
+   */
+  async list(
+    env: string,
+    input: ListQueueInput,
+  ): Promise<{ data: Queue[]; total: number; page: number; pageSize: number }> {
+    const { type, status, page = 1, pageSize = 20 } = input;
+    const offset = (page - 1) * pageSize;
+
+    const conds: SQL[] = [eq(QueueModal.env, env)];
+
+    if (type) {
+      conds.push(eq(QueueModal.type, type));
+    }
+
+    if (status) {
+      conds.push(eq(QueueModal.status, status));
+    }
+
+    const whereClause = conds.length === 1 ? conds[0] : and(...(conds as any));
+
+    // 并行获取数据和总数
+    const [data, totalResult] = await Promise.all([
+      this.db
+        .select()
+        .from(QueueModal)
+        .where(whereClause)
+        .orderBy(desc(QueueModal.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ value: count() })
+        .from(QueueModal)
+        .where(whereClause),
+    ]);
+
+    return {
+      data,
+      total: totalResult[0]?.value ?? 0,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
+   * 批量更新任务状态
+   */
+  async batchUpdateStatus(
+    env: string,
+    ids: string[],
+    status: QueueStatusType,
+  ): Promise<number> {
+    if (!ids || ids.length === 0) return 0;
+
+    const result = await this.db
+      .update(QueueModal)
+      .set({
+        status,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(eq(QueueModal.env, env), inArray(QueueModal.id, ids)),
+      )
+      .returning();
+
+    return result.length;
+  }
+
+  /**
+   * 获取各状态的任务统计概览
+   */
+  async getStats(
+    env: string,
+    type?: string,
+  ): Promise<{ status: string; count: number }[]> {
+    const conds: SQL[] = [eq(QueueModal.env, env)];
+
+    if (type) {
+      conds.push(eq(QueueModal.type, type));
+    }
+
+    const whereClause = conds.length === 1 ? conds[0] : and(...(conds as any));
+
+    const result = await this.db
+      .select({
+        status: QueueModal.status,
+        count: count(),
+      })
+      .from(QueueModal)
+      .where(whereClause)
+      .groupBy(QueueModal.status);
+
+    return result.map((r) => ({
+      status: r.status,
+      count: r.count,
+    }));
   }
 }

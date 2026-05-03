@@ -37,8 +37,16 @@ export const QueueModal = sqliteTable(
       .$defaultFn(() => new Date().toISOString()),
   },
   (table) => ({
-    idxQueuesExecAt: index('idx_execAt').on(table.execAt),
-    idxQueuesCreatedAt: index('idx_createdAt').on(table.createdAt),
+    // 核心复合索引 — 完整覆盖 getByBatchSize 的 WHERE 条件
+    idxBatchQuery: index('idx_env_type_status_execAt').on(
+      table.env,
+      table.type,
+      table.status,
+      table.execAt,
+    ),
+    // 环境+状态索引 — 覆盖 reactive(env, status) 和 getActiveCount
+    idxEnvStatus: index('idx_env_status').on(table.env, table.status),
+    // 环境+类型索引 — 覆盖 getCond 等通用查询
     idxQueuesEnvType: index('idx_env_type').on(table.env, table.type),
   }),
 );
