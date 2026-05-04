@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   List,
   Datagrid,
@@ -21,6 +21,7 @@ import {
   useNotify,
   useRefresh,
   useListFilterContext,
+  useListContext,
 } from 'react-admin';
 import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
@@ -29,6 +30,21 @@ import MenuItem from '@mui/material/MenuItem';
 import MuiSelect from '@mui/material/Select';
 import MuiTextField from '@mui/material/TextField';
 import ClickAwayListener from '@mui/material/ClickAwayListener';
+import Button from '@mui/material/Button';
+import Menu from '@mui/material/Menu';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogActions from '@mui/material/DialogActions';
+import CircularProgress from '@mui/material/CircularProgress';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
+import PauseCircleIcon from '@mui/icons-material/PauseCircle';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 
 import { getAuthKey } from '../providers/authProvider';
 
@@ -313,11 +329,158 @@ const QueueFilters = [
     resettable
   />,
 ];
+/** 批量操作定义 */
+const BULK_ACTIONS = [
+  { key: 'setActive', label: '全部设为 Active', icon: <PlayArrowIcon fontSize="small" />, color: 'success' as const },
+  { key: 'setDone', label: '全部设为 Done', icon: <DoneAllIcon fontSize="small" />, color: 'primary' as const },
+  { key: 'setHang', label: '全部设为 Hang', icon: <PauseCircleIcon fontSize="small" />, color: 'warning' as const },
+  { key: 'delete', label: '全部删除', icon: <DeleteSweepIcon fontSize="small" />, color: 'error' as const },
+] as const;
+
+/** 按当前筛选条件执行批量操作的组件 */
+const FilterBulkActions = () => {
+  const { filterValues, total } = useListContext();
+  const notify = useNotify();
+  const refresh = useRefresh();
+
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<typeof BULK_ACTIONS[number] | null>(null);
+  const [matchCount, setMatchCount] = useState<number | null>(null);
+
+  // 检查是否有任何筛选条件
+  const hasFilter = filterValues && Object.values(filterValues).some((v) => v !== undefined && v !== '');
+
+  const handleMenuClick = (e: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(e.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleActionClick = async (action: typeof BULK_ACTIONS[number]) => {
+    handleMenuClose();
+    setPendingAction(action);
+    setMatchCount(null);
+    setConfirmOpen(true);
+
+    // 获取匹配数量
+    try {
+      const result = await fetchAction<{ count: number }>('queue.countByFilter', {
+        env: filterValues?.env || undefined,
+        type: filterValues?.type || undefined,
+        status: filterValues?.status || undefined,
+        resultKeyword: filterValues?.resultKeyword || undefined,
+      });
+      setMatchCount(result.count);
+    } catch {
+      setMatchCount(total ?? 0);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!pendingAction) return;
+    setLoading(true);
+
+    try {
+      const result = await fetchAction<{ affected: number; action: string }>('queue.bulkActionByFilter', {
+        env: filterValues?.env || undefined,
+        type: filterValues?.type || undefined,
+        status: filterValues?.status || undefined,
+        resultKeyword: filterValues?.resultKeyword || undefined,
+        action: pendingAction.key,
+      });
+      notify(`操作完成，影响了 ${result.affected} 条记录`, { type: 'success' });
+      refresh();
+    } catch (err: any) {
+      notify(`操作失败: ${err.message || '未知错误'}`, { type: 'error' });
+    } finally {
+      setLoading(false);
+      setConfirmOpen(false);
+      setPendingAction(null);
+    }
+  };
+
+  const handleCancel = () => {
+    setConfirmOpen(false);
+    setPendingAction(null);
+  };
+
+  // 构建筛选条件描述
+  const filterDesc = Object.entries(filterValues || {})
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ');
+
+  return (
+    <>
+      <Button
+        size="small"
+        startIcon={<MoreVertIcon />}
+        onClick={handleMenuClick}
+        disabled={!hasFilter}
+        title={!hasFilter ? '请先设置筛选条件' : '按条件批量操作'}
+        sx={{ ml: 1 }}
+      >
+        批量操作
+      </Button>
+
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+        {BULK_ACTIONS.map((action) => (
+          <MenuItem key={action.key} onClick={() => handleActionClick(action)}>
+            <ListItemIcon>{action.icon}</ListItemIcon>
+            <ListItemText>{action.label}</ListItemText>
+          </MenuItem>
+        ))}
+      </Menu>
+
+      <Dialog open={confirmOpen} onClose={handleCancel} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          确认{pendingAction?.label}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            <Box component="span" sx={{ display: 'block', mb: 1 }}>
+              当前筛选条件：<strong>{filterDesc || '无'}</strong>
+            </Box>
+            <Box component="span" sx={{ display: 'block', mb: 1 }}>
+              匹配记录数：{matchCount !== null ? (
+                <strong style={{ fontSize: '1.2em' }}>{matchCount.toLocaleString()}</strong>
+              ) : (
+                <CircularProgress size={16} sx={{ ml: 1, verticalAlign: 'middle' }} />
+              )}
+            </Box>
+            {pendingAction?.key === 'delete' && (
+              <Box component="span" sx={{ display: 'block', color: 'error.main', fontWeight: 600, mt: 1 }}>
+                ⚠️ 删除操作不可逆，请确认！
+              </Box>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancel} disabled={loading}>取消</Button>
+          <Button
+            onClick={handleConfirm}
+            variant="contained"
+            color={pendingAction?.color || 'primary'}
+            disabled={loading || matchCount === null || matchCount === 0}
+            startIcon={loading ? <CircularProgress size={16} /> : pendingAction?.icon}
+          >
+            {loading ? '执行中...' : `确认（${matchCount?.toLocaleString() ?? '...'} 条）`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+};
 
 /** 列表操作栏 */
 const QueueListActions = () => (
   <TopToolbar>
     <FilterButton />
+    <FilterBulkActions />
   </TopToolbar>
 );
 

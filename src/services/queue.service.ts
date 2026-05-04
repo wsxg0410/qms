@@ -408,12 +408,17 @@ export class QueueService extends BaseService {
    * 分页查询任务列表
    * env 是可选筛选条件，与 type、status 同级
    */
-  async list(
-    input: ListQueueInput & { env?: string },
-  ): Promise<{ data: Queue[]; total: number; page: number; pageSize: number }> {
-    const { env, type, status, resultKeyword, page = 1, pageSize = 20 } = input;
-    const offset = (page - 1) * pageSize;
-
+  /**
+   * 根据列表筛选参数构建 WHERE 条件
+   * 供 list / countByFilter / removeByFilter / updateStatusByFilter 共用
+   */
+  private buildListFilter(input: {
+    env?: string;
+    type?: string;
+    status?: string;
+    resultKeyword?: string;
+  }): SQL | undefined {
+    const { env, type, status, resultKeyword } = input;
     const conds: SQL[] = [];
 
     if (env) {
@@ -425,18 +430,24 @@ export class QueueService extends BaseService {
     }
 
     if (status) {
-      conds.push(eq(QueueModal.status, status));
+      conds.push(eq(QueueModal.status, status as QueueStatusType));
     }
 
     if (resultKeyword) {
       conds.push(like(QueueModal.result, `%${resultKeyword}%`));
     }
 
-    const whereClause = conds.length === 0
-      ? undefined
-      : conds.length === 1
-        ? conds[0]
-        : and(...(conds as any));
+    if (conds.length === 0) return undefined;
+    if (conds.length === 1) return conds[0];
+    return and(...(conds as any));
+  }
+
+  async list(
+    input: ListQueueInput & { env?: string },
+  ): Promise<{ data: Queue[]; total: number; page: number; pageSize: number }> {
+    const { page = 1, pageSize = 20 } = input;
+    const offset = (page - 1) * pageSize;
+    const whereClause = this.buildListFilter(input);
 
     // 并行获取数据和总数
     const [data, totalResult] = await Promise.all([
@@ -459,6 +470,72 @@ export class QueueService extends BaseService {
       page,
       pageSize,
     };
+  }
+
+  /**
+   * 按筛选条件获取匹配记录总数
+   */
+  async countByFilter(filter: {
+    env?: string;
+    type?: string;
+    status?: string;
+    resultKeyword?: string;
+  }): Promise<number> {
+    const whereClause = this.buildListFilter(filter);
+    const result = await this.db
+      .select({ value: count() })
+      .from(QueueModal)
+      .where(whereClause);
+    return result[0]?.value ?? 0;
+  }
+
+  /**
+   * 按筛选条件批量删除（不依赖 ids，直接在数据库层面执行）
+   */
+  async removeByFilter(filter: {
+    env?: string;
+    type?: string;
+    status?: string;
+    resultKeyword?: string;
+  }): Promise<number> {
+    const whereClause = this.buildListFilter(filter);
+    // 安全检查：不允许无条件删除全表
+    if (!whereClause) {
+      throw new Error('At least one filter condition is required for bulk delete');
+    }
+    const deleted = await this.db
+      .delete(QueueModal)
+      .where(whereClause)
+      .returning();
+    return deleted.length;
+  }
+
+  /**
+   * 按筛选条件批量更新状态（不依赖 ids，直接在数据库层面执行）
+   */
+  async updateStatusByFilter(
+    filter: {
+      env?: string;
+      type?: string;
+      status?: string;
+      resultKeyword?: string;
+    },
+    newStatus: QueueStatusType,
+  ): Promise<number> {
+    const whereClause = this.buildListFilter(filter);
+    if (!whereClause) {
+      throw new Error('At least one filter condition is required for bulk update');
+    }
+    const updated = await this.db
+      .update(QueueModal)
+      .set({
+        status: newStatus,
+        errorTimes: newStatus === 'active' ? 0 : undefined,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(whereClause)
+      .returning();
+    return updated.length;
   }
 
   /**

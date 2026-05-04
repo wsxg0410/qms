@@ -200,4 +200,68 @@ export const queue = {
       return svc.getDistinctTypes(input.env);
     },
   }),
+
+  /**
+   * 按筛选条件获取匹配记录数（用于批量操作前确认）
+   */
+  countByFilter: defineAction({
+    input: z.object({
+      env: z.string().optional(),
+      type: z.string().optional(),
+      status: z.string().optional(),
+      resultKeyword: z.string().optional(),
+    }),
+    handler: async (input, ctx) => {
+      const svc = getService(ctx.request);
+      const count = await svc.countByFilter({
+        env: input.env || undefined,
+        type: input.type || undefined,
+        status: input.status || undefined,
+        resultKeyword: input.resultKeyword || undefined,
+      });
+      return { count };
+    },
+  }),
+
+  /**
+   * 按筛选条件执行批量操作（删除 / 更新状态）
+   * 不依赖 ids 数组，直接在数据库层面按条件执行
+   */
+  bulkActionByFilter: defineAction({
+    input: z.object({
+      env: z.string().optional(),
+      type: z.string().optional(),
+      status: z.string().optional(),
+      resultKeyword: z.string().optional(),
+      action: z.enum(['delete', 'setActive', 'setDone', 'setHang']),
+    }),
+    handler: async (input, ctx) => {
+      const svc = getService(ctx.request);
+      const filter = {
+        env: input.env || undefined,
+        type: input.type || undefined,
+        status: input.status || undefined,
+        resultKeyword: input.resultKeyword || undefined,
+      };
+
+      let affected = 0;
+      switch (input.action) {
+        case 'delete':
+          affected = await svc.removeByFilter(filter);
+          break;
+        case 'setActive':
+          affected = await svc.updateStatusByFilter(filter, 'active');
+          break;
+        case 'setDone':
+          affected = await svc.updateStatusByFilter(filter, 'done');
+          break;
+        case 'setHang':
+          affected = await svc.updateStatusByFilter(filter, 'hang');
+          break;
+      }
+
+      return { affected, action: input.action };
+    },
+  }),
 };
+
