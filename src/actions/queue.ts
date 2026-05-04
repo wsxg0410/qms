@@ -25,6 +25,7 @@ export const queue = {
       env: z.string().optional(),
       type: z.string().optional(),
       status: z.string().optional(),
+      resultKeyword: z.string().optional(),
       page: z.number().int().min(1).default(1),
       pageSize: z.number().int().min(1).max(100).default(20),
       sortField: z.string().default('createdAt'),
@@ -36,6 +37,7 @@ export const queue = {
         env: input.env,
         type: input.type,
         status: input.status as QueueStatusType | undefined,
+        resultKeyword: input.resultKeyword,
         page: input.page,
         pageSize: input.pageSize,
       });

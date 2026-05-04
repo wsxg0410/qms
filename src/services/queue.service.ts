@@ -411,7 +411,7 @@ export class QueueService extends BaseService {
   async list(
     input: ListQueueInput & { env?: string },
   ): Promise<{ data: Queue[]; total: number; page: number; pageSize: number }> {
-    const { env, type, status, page = 1, pageSize = 20 } = input;
+    const { env, type, status, resultKeyword, page = 1, pageSize = 20 } = input;
     const offset = (page - 1) * pageSize;
 
     const conds: SQL[] = [];
@@ -426,6 +426,10 @@ export class QueueService extends BaseService {
 
     if (status) {
       conds.push(eq(QueueModal.status, status));
+    }
+
+    if (resultKeyword) {
+      conds.push(like(QueueModal.result, `%${resultKeyword}%`));
     }
 
     const whereClause = conds.length === 0

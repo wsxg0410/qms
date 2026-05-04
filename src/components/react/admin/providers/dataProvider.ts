@@ -61,6 +61,7 @@ export const dataProvider: DataProvider = {
       env: filter.env || undefined,
       type: filter.type || undefined,
       status: filter.status || undefined,
+      resultKeyword: filter.resultKeyword || undefined,
       page,
       pageSize: perPage,
       sortField: field,

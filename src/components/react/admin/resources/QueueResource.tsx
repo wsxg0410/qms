@@ -304,6 +304,14 @@ const QueueFilters = [
     size="small"
     margin="none"
   />,
+  <TextInput
+    source="resultKeyword"
+    label="Result 关键字"
+    key="resultKeyword"
+    size="small"
+    margin="none"
+    resettable
+  />,
 ];
 
 /** 列表操作栏 */
@@ -351,6 +359,7 @@ export const QueueList = () => (
   >
     <Datagrid
       bulkActionButtons={<QueueBulkActions />}
+      rowClick="expand"
       expand={<QueueExpandPanel />}
       expandSingle
       sx={{
