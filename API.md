@@ -10,14 +10,14 @@
 
 ### 认证方式
 
-所有 API 请求需要通过 JWT Cookie 认证（`auth_session`）。通过登录接口获取。
+当前通过 `env` header 进行环境隔离，确保不同环境的数据互不影响。
 
 ### 必需 Headers
 
-| Header | 必填 | 说明 |
-|---|:---:|---|
-| `x-env` 或 `env` | ✅ | 环境标识符，用于数据隔离。例如 `dev`、`download-prod` |
-| `Content-Type` | ✅ (POST/PUT) | `application/json` |
+| Header           |     必填      | 说明                                                                                |
+| ---------------- | :-----------: | ----------------------------------------------------------------------------------- |
+| `env` 或 `x-env` |      ✅       | 环境标识符，用于数据隔离。例如 `dev`、`download-prod`。优先读取 `env`，其次 `x-env` |
+| `Content-Type`   | ✅ (POST/PUT) | `application/json`                                                                  |
 
 ### 统一响应格式
 
@@ -43,20 +43,20 @@
 
 ### Queue 数据模型
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | `string` | 队列任务唯一标识（唯一任务: MD5 哈希，非唯一任务: nanoid） |
-| `env` | `string` | 环境标识 |
-| `type` | `string` | 任务类型 |
-| `status` | `string` | 状态：`active` \| `hang` \| `doing` \| `done` \| `fail` \| `out_times` |
-| `errorTimes` | `integer` | 错误重试次数 |
-| `data` | `object` | 任务数据（JSON） |
-| `config` | `object` | 任务配置（JSON） |
-| `priority` | `integer` | 优先级，数值越大优先级越高，默认 `0` |
-| `result` | `string \| null` | 任务执行结果 |
-| `execAt` | `string` | 计划执行时间（ISO 8601） |
-| `createdAt` | `string` | 创建时间（ISO 8601） |
-| `updatedAt` | `string` | 更新时间（ISO 8601） |
+| 字段         | 类型             | 说明                                                                   |
+| ------------ | ---------------- | ---------------------------------------------------------------------- |
+| `id`         | `string`         | 队列任务唯一标识（唯一任务: MD5 哈希，非唯一任务: nanoid）             |
+| `env`        | `string`         | 环境标识                                                               |
+| `type`       | `string`         | 任务类型                                                               |
+| `status`     | `string`         | 状态：`active` \| `hang` \| `doing` \| `done` \| `fail` \| `out_times` |
+| `errorTimes` | `integer`        | 错误重试次数                                                           |
+| `data`       | `object`         | 任务数据（JSON）                                                       |
+| `config`     | `object`         | 任务配置（JSON）                                                       |
+| `priority`   | `integer`        | 优先级，数值越大优先级越高，默认 `0`                                   |
+| `result`     | `string \| null` | 任务执行结果                                                           |
+| `execAt`     | `string`         | 计划执行时间（ISO 8601）                                               |
+| `createdAt`  | `string`         | 创建时间（ISO 8601）                                                   |
+| `updatedAt`  | `string`         | 更新时间（ISO 8601）                                                   |
 
 ---
 
@@ -70,12 +70,17 @@
 GET /api/hello
 ```
 
+> 此端点**不需要** `env` header。
+
 **响应示例：**
 
 ```json
 {
   "success": true,
-  "data": { "success": true, "data": "hello" }
+  "data": {
+    "success": true,
+    "data": "hello"
+  }
 }
 ```
 
@@ -89,12 +94,12 @@ POST /api/queues/add
 
 **请求体：**
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
-|---|---|:---:|---|---|
-| `type` | `string` | ✅ | — | 任务类型，如 `download`、`coupon` |
-| `data` | `any` | ✅ | — | 任务数据，任意 JSON 对象 |
-| `unique` | `boolean` | ❌ | `true` | 是否唯一。`true` 时相同 `(env, type, data)` 的任务会被去重（upsert） |
-| `priority` | `number` | ❌ | `0` | 优先级，数值越大越优先处理 |
+| 字段       | 类型      | 必填 | 默认值 | 说明                                                                 |
+| ---------- | --------- | :--: | ------ | -------------------------------------------------------------------- |
+| `type`     | `string`  |  ✅  | —      | 任务类型，如 `download`、`coupon`                                    |
+| `data`     | `any`     |  ✅  | —      | 任务数据，任意 JSON 对象                                             |
+| `unique`   | `boolean` |  ❌  | `true` | 是否唯一。`true` 时相同 `(env, type, data)` 的任务会被去重（upsert） |
+| `priority` | `number`  |  ❌  | `0`    | 优先级，数值越大越优先处理                                           |
 
 **请求示例：**
 
@@ -119,12 +124,12 @@ POST /api/queues/bulk-add
 
 **请求体：**
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
-|---|---|:---:|---|---|
-| `type` | `string` | ✅ | — | 任务类型 |
-| `data` | `any[]` | ✅ | — | 任务数据数组 |
-| `unique` | `boolean` | ❌ | `true` | 是否去重 |
-| `priority` | `number` | ❌ | `0` | 优先级 |
+| 字段       | 类型      | 必填 | 默认值 | 说明         |
+| ---------- | --------- | :--: | ------ | ------------ |
+| `type`     | `string`  |  ✅  | —      | 任务类型     |
+| `data`     | `any[]`   |  ✅  | —      | 任务数据数组 |
+| `unique`   | `boolean` |  ❌  | `true` | 是否去重     |
+| `priority` | `number`  |  ❌  | `0`    | 优先级       |
 
 **请求示例：**
 
@@ -150,12 +155,12 @@ GET /api/queues?type={type}&status={status}&page={page}&pageSize={pageSize}
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|---|---|:---:|---|---|
-| `type` | `string` | ❌ | — | 按任务类型过滤 |
-| `status` | `string` | ❌ | — | 按状态过滤 |
-| `page` | `number` | ❌ | `1` | 页码（从 1 开始） |
-| `pageSize` | `number` | ❌ | `20` | 每页条数（最大 100） |
+| 参数       | 类型     | 必填 | 默认值 | 说明                                                                           |
+| ---------- | -------- | :--: | ------ | ------------------------------------------------------------------------------ |
+| `type`     | `string` |  ❌  | —      | 按任务类型过滤                                                                 |
+| `status`   | `string` |  ❌  | —      | 按状态过滤（`active` \| `hang` \| `doing` \| `done` \| `fail` \| `out_times`） |
+| `page`     | `number` |  ❌  | `1`    | 页码（从 1 开始）                                                              |
+| `pageSize` | `number` |  ❌  | `20`   | 每页条数（1 ~ 100）                                                            |
 
 **响应：**
 
@@ -181,11 +186,11 @@ GET /api/queues/{id}
 
 **路径参数：**
 
-| 参数 | 说明 |
-|---|---|
+| 参数 | 说明        |
+| ---- | ----------- |
 | `id` | 队列任务 ID |
 
-**响应：** 返回 Queue 对象。不存在或 env 不匹配时返回 404。
+**响应：** 返回 Queue 对象。不存在或 `env` 不匹配时返回 404。
 
 ---
 
@@ -197,12 +202,13 @@ GET /api/queues/get-by-batch-size?type={type}&batchSize={batchSize}
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|---|---|:---:|---|---|
-| `type` | `string` | ✅ | `""` | 任务类型（精确匹配） |
-| `batchSize` | `number` | ❌ | `10` | 返回的最大任务数量 |
+| 参数        | 类型     | 必填 | 默认值 | 说明                 |
+| ----------- | -------- | :--: | ------ | -------------------- |
+| `type`      | `string` |  ✅  | `""`   | 任务类型（精确匹配） |
+| `batchSize` | `number` |  ❌  | `10`   | 返回的最大任务数量   |
 
 **筛选逻辑：**
+
 - `status` IN (`active`, `fail`) 且 `execAt` < 当前时间
 - 按 `priority` 降序、`updatedAt` 升序排列
 
@@ -218,9 +224,14 @@ GET /api/queues/count?type={type}
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 说明 |
-|---|---|:---:|---|
-| `type` | `string` | ✅ | 任务类型前缀（LIKE 前缀匹配） |
+| 参数   | 类型     | 必填 | 默认值 | 说明                                              |
+| ------ | -------- | :--: | ------ | ------------------------------------------------- |
+| `type` | `string` |  ❌  | `""`   | 任务类型前缀（LIKE 前缀匹配），为空时匹配所有类型 |
+
+**筛选逻辑：**
+
+- `status` IN (`active`, `fail`)
+- `type` 使用 `LIKE '{type}%'` 前缀匹配
 
 **响应：**
 
@@ -243,9 +254,9 @@ GET /api/queues/stats?type={type}
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 说明 |
-|---|---|:---:|---|
-| `type` | `string` | ❌ | 按任务类型过滤 |
+| 参数   | 类型     | 必填 | 说明                       |
+| ------ | -------- | :--: | -------------------------- |
+| `type` | `string` |  ❌  | 按任务类型过滤（精确匹配） |
 
 **响应：**
 
@@ -270,11 +281,11 @@ PUT /api/queues/{id}
 
 **请求体：**
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|:---:|---|
-| `status` | `string` | ✅ | 新状态 |
-| `errorTimes` | `number` | ✅ | 错误次数 |
-| `result` | `string` | ✅ | 执行结果 |
+| 字段         | 类型     | 必填 | 说明                     |
+| ------------ | -------- | :--: | ------------------------ |
+| `status`     | `string` |  ✅  | 新状态（需为合法枚举值） |
+| `errorTimes` | `number` |  ✅  | 错误次数                 |
+| `result`     | `string` |  ✅  | 执行结果                 |
 
 **响应：** 返回更新后的 Queue 对象。
 
@@ -288,9 +299,9 @@ PUT /api/queues/{id}/status
 
 **请求体：**
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|:---:|---|
-| `status` | `string` | ✅ | 合法值：`active` \| `hang` \| `doing` \| `done` \| `fail` \| `out_times` |
+| 字段     | 类型     | 必填 | 说明                                                                     |
+| -------- | -------- | :--: | ------------------------------------------------------------------------ |
+| `status` | `string` |  ✅  | 合法值：`active` \| `hang` \| `doing` \| `done` \| `fail` \| `out_times` |
 
 **响应：** 返回更新后的 Queue 对象。
 
@@ -304,10 +315,10 @@ PUT /api/queues/batch-status
 
 **请求体：**
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|:---:|---|
-| `ids` | `string[]` | ✅ | 任务 ID 数组（至少 1 个） |
-| `status` | `string` | ✅ | 目标状态 |
+| 字段     | 类型       | 必填 | 说明                      |
+| -------- | ---------- | :--: | ------------------------- |
+| `ids`    | `string[]` |  ✅  | 任务 ID 数组（至少 1 个） |
+| `status` | `string`   |  ✅  | 目标状态                  |
 
 **请求示例：**
 
@@ -353,10 +364,10 @@ POST /api/queues/remove
 
 **请求体：**
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|:---:|---|
-| `type` | `string` | ❌* | 按任务类型过滤 |
-| `status` | `string` | ❌* | 按状态过滤 |
+| 字段     | 类型     | 必填 | 说明           |
+| -------- | -------- | :--: | -------------- |
+| `type`   | `string` | ❌\* | 按任务类型过滤 |
+| `status` | `string` | ❌\* | 按状态过滤     |
 
 > \* `type` 和 `status` 至少提供一个
 
@@ -385,10 +396,10 @@ POST /api/queues/remove
 GET /api/queues/reactive?type={type}&status={status}
 ```
 
-| 参数 | 类型 | 必填 | 说明 |
-|---|---|:---:|---|
-| `type` | `string` | ❌ | 按任务类型过滤 |
-| `status` | `string` | ❌ | 按当前状态过滤 |
+| 参数     | 类型     | 必填 | 说明           |
+| -------- | -------- | :--: | -------------- |
+| `type`   | `string` |  ❌  | 按任务类型过滤 |
+| `status` | `string` |  ❌  | 按当前状态过滤 |
 
 #### POST 方式（按 ID 数组）
 
@@ -398,13 +409,15 @@ POST /api/queues/reactive
 
 **请求体：**
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|:---:|---|
-| `ids` | `string[]` | ❌ | 要重新激活的任务 ID 数组 |
-| `type` | `string` | ❌ | 按任务类型过滤 |
-| `status` | `string` | ❌ | 按当前状态过滤 |
+| 字段     | 类型       | 必填 | 说明                     |
+| -------- | ---------- | :--: | ------------------------ |
+| `ids`    | `string[]` |  ❌  | 要重新激活的任务 ID 数组 |
+| `type`   | `string`   |  ❌  | 按任务类型过滤           |
+| `status` | `string`   |  ❌  | 按当前状态过滤           |
 
 **效果：** 将匹配的任务状态重置为 `active`，错误次数归零。
+
+> ⚠️ 如果未提供任何过滤条件，操作将被跳过（不会更新任何记录）。
 
 **响应：**
 

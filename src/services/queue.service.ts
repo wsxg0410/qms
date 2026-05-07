@@ -120,31 +120,28 @@ export class QueueService extends BaseService {
     const now = new Date().toISOString();
 
     // 1. 准备所有要插入的数据
-    // (已修复：确保 payloads 包含所有 NOT NULL 的字段)
-    let queuePayloads = await Promise.all(
-      datas.map(async (item: T) => {
-        // 根据 unique 选项决定如何生成 id
-        const id = unique
-          ? md5(
-              // 唯一任务：根据内容生成确定性ID
-              JSON.stringify({
-                env: env,
-                type,
-                data: genKeyData ? genKeyData(item) : item,
-              }),
-            )
-          : nanoid(); // 非唯一任务：为每个任务生成一个全新的随机ID
+    const queuePayloads = datas.map((item: T) => {
+      // 根据 unique 选项决定如何生成 id
+      const id = unique
+        ? md5(
+            // 唯一任务：根据内容生成确定性ID
+            JSON.stringify({
+              env: env,
+              type,
+              data: genKeyData ? genKeyData(item) : item,
+            }),
+          )
+        : nanoid(); // 非唯一任务：为每个任务生成一个全新的随机ID
 
-        // 必须返回一个完整的 Insert Model
-        return {
-          id,
-          env,
-          type,
-          data: item,
-          config: options,
-        };
-      }),
-    );
+      // 必须返回一个完整的 Insert Model
+      return {
+        id,
+        env,
+        type,
+        data: item,
+        config: options,
+      };
+    });
 
     const statements = queuePayloads.map((row) => {
       if (unique) {
@@ -396,6 +393,17 @@ export class QueueService extends BaseService {
       .get();
   }
 
+  /**
+   * 按 id 数组批量获取（避免 N+1 查询）
+   */
+  async getByIds(ids: string[]): Promise<Queue[]> {
+    if (!ids || ids.length === 0) return [];
+    return await this.db
+      .select()
+      .from(QueueModal)
+      .where(inArray(QueueModal.id, ids));
+  }
+
   async removeAll(env: string, input: GetQueueInput = {}) {
     let where = await this.getCond({ ...input, env });
 
@@ -530,7 +538,7 @@ export class QueueService extends BaseService {
       .update(QueueModal)
       .set({
         status: newStatus,
-        errorTimes: newStatus === 'active' ? 0 : undefined,
+        ...(newStatus === 'active' ? { errorTimes: 0 } : {}),
         updatedAt: new Date().toISOString(),
       })
       .where(whereClause)

@@ -12,7 +12,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import ReplayIcon from '@mui/icons-material/Replay';
 
-import { getAuthKey } from './providers/authProvider';
+import { fetchAction } from './utils/fetchAction';
 
 /** 状态配色映射 */
 const STATUS_CONFIG: Record<
@@ -63,25 +63,8 @@ export function Dashboard() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const authKey = getAuthKey();
-      const res = await fetch('/_actions/queue.getStats', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authKey ? { 'x-auth-key': authKey } : {}),
-        },
-        body: JSON.stringify({}),
-      });
-      const text = await res.text();
-      const contentType = res.headers.get('content-type') || '';
-      let data: any;
-      if (contentType.includes('json+devalue')) {
-        const { unflatten } = await import('devalue');
-        data = unflatten(JSON.parse(text));
-      } else {
-        data = JSON.parse(text);
-      }
-      setStats(Array.isArray(data) ? data : data?.data || []);
+      const data = await fetchAction<StatsItem[]>('queue.getStats', {});
+      setStats(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to load stats', e);
     } finally {

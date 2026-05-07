@@ -14,7 +14,6 @@ export const PUT: APIRoute = async ({ request, locals }) => {
   const queueService = new QueueService(db);
 
   const updatedCount = await queueService.batchUpdateStatus(
-    env,
     payload.ids,
     payload.status,
   );

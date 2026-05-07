@@ -46,7 +46,6 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import PauseCircleIcon from '@mui/icons-material/PauseCircle';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 
-import { getAuthKey } from '../providers/authProvider';
 
 /** 状态颜色映射 */
 const STATUS_COLORS: Record<string, 'success' | 'info' | 'warning' | 'error' | 'default' | 'primary' | 'secondary'> = {
@@ -257,24 +256,7 @@ const QueueExpandPanel = () => {
 };
 
 /** 调用 Astro Action 的通用工具（筛选组件用） */
-async function fetchAction<T = any>(actionName: string, input: Record<string, any> = {}): Promise<T> {
-  const authKey = getAuthKey();
-  const res = await fetch(`/_actions/${actionName}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authKey ? { 'x-auth-key': authKey } : {}),
-    },
-    body: JSON.stringify(input),
-  });
-  const text = await res.text();
-  const contentType = res.headers.get('content-type') || '';
-  if (contentType.includes('json+devalue')) {
-    const { unflatten } = await import('devalue');
-    return unflatten(JSON.parse(text)) as T;
-  }
-  return JSON.parse(text) as T;
-}
+import { fetchAction } from '../utils/fetchAction';
 
 /** 动态 Env 下拉筛选 —— 从数据库聚合获取选项 */
 const EnvSelectFilter = (props: any) => {

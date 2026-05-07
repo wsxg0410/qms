@@ -74,10 +74,8 @@ export const queue = {
     }),
     handler: async (input, ctx) => {
       const svc = getService(ctx.request);
-      const results = await Promise.all(
-        input.ids.map((id) => svc.getById(id)),
-      );
-      return results.filter(Boolean);
+      const results = await svc.getByIds(input.ids);
+      return results;
     },
   }),
 

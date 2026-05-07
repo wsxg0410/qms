@@ -22,7 +22,7 @@ export const PUT: APIRoute = async ({ request, locals, params }) => {
 
   const queueService = new QueueService(db);
 
-  const d = await queueService.updateStatus(env, id, status as QueueStatusType);
+  const d = await queueService.updateStatus(id, status as QueueStatusType);
 
   return createApiResponse(d);
 };

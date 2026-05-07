@@ -64,7 +64,7 @@ export const PUT: APIRoute = async ({ request, locals, params }) => {
 
   const queueService = new QueueService(db);
 
-  const bd = await queueService.updateQueue(env, id, {
+  const bd = await queueService.updateQueue(id, {
     status,
     errorTimes: body.errorTimes,
     result: body.result,

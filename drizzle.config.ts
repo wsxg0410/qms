@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
@@ -6,8 +7,8 @@ export default defineConfig({
   dialect: 'sqlite',
   driver: 'd1-http',
   dbCredentials: {
-    accountId: `84a13e10596141072b507307ea899b49`,
-    databaseId: `fc49e84e-c761-47ee-a2e4-de2143b6e9cd`,
-    token: `wKYJnj9Hm4QZQLlzxI25I_A_Qk2dK0xULh9Xequ-`,
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+    databaseId: process.env.D1_DATABASE_ID!,
+    token: process.env.CLOUDFLARE_API_TOKEN!,
   },
 });
